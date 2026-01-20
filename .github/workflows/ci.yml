@@ -2,23 +2,36 @@ name: Docker CI and Security Scan
 
 on:
   push:
-    branches: [ "main" ]  # main 브랜치에 코드가 올라올 때 실행
+    branches: [ "main" ]
 
 jobs:
-  build-and-scan:
-    runs-on: ubuntu-latest  # 리눅스 가상 환경 빌리기
+  build-and-push:
+    runs-on: ubuntu-latest
 
     steps:
     - name: 체크아웃 소스코드
       uses: actions/checkout@v3
 
     - name: 도커 이미지 빌드
-      run: docker build -t my-app:${{ github.sha }} .
+      run: docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/my-app:${{ github.sha }} .
 
     - name: Trivy 보안 스캔 실행
       uses: aquasecurity/trivy-action@master
       with:
-        image-ref: 'my-app:${{ github.sha }}'
+        image-ref: '${{ secrets.DOCKERHUB_USERNAME }}/my-app:${{ github.sha }}'
         format: 'table'
-        exit-code: '0'       # 취약점이 발견되면 빌드를 실패시킴 (강력한 보안 정책)
+        exit-code: '0'
         severity: 'CRITICAL'
+
+    - name: Docker Hub 로그인
+      uses: docker/login-action@v2
+      with:
+        username: ${{ secrets.DOCKERHUB_USERNAME }}
+        password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+    - name: Docker Hub로 Push
+      run: |
+        # 최신 버전임을 알리는 latest 태그도 같이 붙여서 푸시합니다.
+        docker tag ${{ secrets.DOCKERHUB_USERNAME }}/my-app:${{ github.sha }} ${{ secrets.DOCKERHUB_USERNAME }}/my-app:latest
+        docker push ${{ secrets.DOCKERHUB_USERNAME }}/my-app:${{ github.sha }}
+        docker push ${{ secrets.DOCKERHUB_USERNAME }}/my-app:latest
