@@ -31,7 +31,25 @@ jobs:
 
     - name: Docker Hub로 Push
       run: |
-        # 최신 버전임을 알리는 latest 태그도 같이 붙여서 푸시합니다.
         docker tag ${{ secrets.DOCKERHUB_USERNAME }}/my-app:${{ github.sha }} ${{ secrets.DOCKERHUB_USERNAME }}/my-app:latest
         docker push ${{ secrets.DOCKERHUB_USERNAME }}/my-app:${{ github.sha }}
         docker push ${{ secrets.DOCKERHUB_USERNAME }}/my-app:latest
+
+    - name: Deploy to Oracle Cloud
+      uses: appleboy/ssh-action@master
+      with:
+        host: ${{ secrets.HOST }}
+        username: ${{ secrets.USERNAME }}
+        key: ${{ secrets.KEY }}
+        script: |
+          # 1. 기존 컨테이너 중지 및 삭제 (이미 실행중인 my-app 제거)
+          sudo docker rm -f my-app || true
+          
+          # 2. 최신 이미지 내려받기
+          sudo docker pull ${{ secrets.DOCKERHUB_USERNAME }}/my-app:latest
+          
+          # 3. 새 컨테이너 실행
+          sudo docker run -d -p 80:8080 --name my-app ${{ secrets.DOCKERHUB_USERNAME }}/my-app:latest
+          
+          # 4. 사용하지 않는 오래된 이미지 삭제 (용량 확보)
+          sudo docker image prune -f
